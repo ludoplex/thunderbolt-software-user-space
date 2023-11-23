@@ -86,8 +86,7 @@ class Device(object):
         if predicate(self):
             return self
         for c in self.children:
-            found = c.first(predicate)
-            if found:
+            if found := c.first(predicate):
                 return found
 
     @property
@@ -118,12 +117,12 @@ class Device(object):
                                       attributes,
                                       properties)
         self.testbed = bed
-        print('Connected ' + self.name + ' ' + self.syspath)
+        print(f'Connected {self.name} {self.syspath}')
 
     def disconnect(self, bed):
         for c in self.children:
             c.disconnect(bed)
-        print('disconnecting ' + self.name + ' ' + self.syspath)
+        print(f'disconnecting {self.name} {self.syspath}')
         bed.remove_device(self.syspath)
         self.authorized = 0
         self.key = ""
@@ -148,7 +147,7 @@ class TbDevice(Device):
                  uid=None, children=None):
         super(TbDevice, self).__init__(name, children or [])
         self.unique_id = uid or str(uuid.uuid4())
-        self.device_name = device_name or 'Thunderbolt ' + name
+        self.device_name = device_name or f'Thunderbolt {name}'
         self.device = self._make_id(self.device_name)
         self.vendor_name = vendor or 'Mock Device'
         self.vendor = self._make_id(self.vendor_name)
@@ -213,8 +212,8 @@ class TbDomain(Device):
 # Test Suite
 class thunderbolt_test(unittest.TestCase):
     @classmethod
-    def setUp(self):
-        self.testbed = UMockdev.Testbed.new()
+    def setUp(cls):
+        cls.testbed = UMockdev.Testbed.new()
         print("\nPreparing test case\n")
         # Remove ACL database before each test case
         for root, dirs, files in os.walk(ACL, topdown=False):
@@ -229,42 +228,35 @@ class thunderbolt_test(unittest.TestCase):
 
     # mock tree stuff
     def default_mock_tree(self):
-        # default mock tree
-        tree = TbDomain(host=TbHost([
-            TbDevice('0-1', device_name = DEVICE_NAME, vendor = VENDOR)]))
-        return tree
+        return TbDomain(
+            host=TbHost([TbDevice('0-1', device_name=DEVICE_NAME, vendor=VENDOR)])
+        )
 
     # Authorized security level 0 device tree
     def authorized_mock_tree(self, index = 0):
         # Tree with security level 0
         host = TbHost([TbDevice('%d-1' % index, device_name = DEVICE_NAME,
                       vendor = VENDOR, authorized = 1)], index = index)
-        tree = TbDomain(security = TbDomain.SECURITY_NONE, index = index,
-                        host = host)
-
-        return tree
+        return TbDomain(security=TbDomain.SECURITY_NONE, index=index, host=host)
 
     # Parse tbtadm devices
     def get_device_line(self, route):
-        u = subprocess.check_output(
-                shlex.split("%s devices" % TBTADM)).decode("utf-8")
+        u = subprocess.check_output(shlex.split(f"{TBTADM} devices")).decode("utf-8")
         lines = u.splitlines()
         for l in lines:
-            if re.findall("^%s" % route, l):
+            if re.findall(f"^{route}", l):
                 return l
 
     # Parse tbtadm topology
     def extract_property(self, u, prop):
         lines = u.splitlines()
         for l in lines:
-            seclevel = re.findall(".*%s: (.*)" % prop, l)
-            if seclevel:
+            if seclevel := re.findall(f".*{prop}: (.*)", l):
                 log.debug("%s: %s", prop, seclevel[0])
                 return seclevel[0]
 
     def get_info(self):
-        u = subprocess.check_output(
-                shlex.split("%s topology" % TBTADM)).decode("utf-8")
+        u = subprocess.check_output(shlex.split(f"{TBTADM} topology")).decode("utf-8")
         log.debug(u)
         return u
 
@@ -344,26 +336,26 @@ class thunderbolt_test(unittest.TestCase):
         uuid = self.get_uuid()
         self.assertNotEqual(uuid, None)
 
-        output = subprocess.check_output(shlex.split("%s approve-all" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} approve-all"))
         self.assertTrue(b'Approval not relevant in SL0' in output)
 
-        output = subprocess.check_output(shlex.split("%s approve --once 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} approve --once 0-1"))
         self.assertTrue(b'Already authorized' in output)
 
-        output = subprocess.check_output(shlex.split("%s approve 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} approve 0-1"))
         self.assertTrue(b'Already authorized' in output)
 
-        output = subprocess.check_output(shlex.split("%s add 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} add 0-1"))
         self.assertTrue(b'Adding to ACL is not relevant in SL0' in output)
 
         # ACL should not exist
-        self.assertFalse(os.path.isdir(ACL + "/" + uuid))
+        self.assertFalse(os.path.isdir(f"{ACL}/{uuid}"))
 
-        output = subprocess.check_output(shlex.split("%s acl" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} acl"))
         log.debug(output)
         self.assertTrue(b'ACL is empty' in output)
 
-        output = subprocess.check_output(shlex.split("%s devices" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} devices"))
         log.debug(output)
 
         output = self.get_device_line("0-1")
@@ -373,10 +365,10 @@ class thunderbolt_test(unittest.TestCase):
         self.assertTrue("not in ACL" in output)
 
         # Test remove
-        output = subprocess.check_output(shlex.split("%s remove 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} remove 0-1"))
         self.assertTrue(b'ACL entry doesn\'t exist' in output)
 
-        output = subprocess.check_output(shlex.split("%s remove-all" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} remove-all"))
         self.assertTrue(b'ACL is empty' in output)
 
         # disconnect all devices
@@ -399,17 +391,17 @@ class thunderbolt_test(unittest.TestCase):
         uuid = self.get_uuid()
         self.assertNotEqual(uuid, None)
 
-        output = subprocess.check_output(shlex.split("%s approve --once 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} approve --once 0-1"))
         self.assertTrue(b'Authorized' in output)
 
         authorized = self.get_authorized()
         self.assertEqual(authorized, "Yes")
 
         # ACL should not exist
-        self.assertFalse(os.path.isdir(ACL + "/" + uuid))
+        self.assertFalse(os.path.isdir(f"{ACL}/{uuid}"))
 
         # Test that second authorization returns "Already authorized"
-        output = subprocess.check_output(shlex.split("%s approve --once 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} approve --once 0-1"))
         self.assertTrue(b'Already authorized' in output)
 
         # disconnect all devices
@@ -436,9 +428,9 @@ class thunderbolt_test(unittest.TestCase):
         self.assertNotEqual(uuid, None)
 
         # ACL should not yet exist
-        self.assertFalse(os.path.isdir(ACL + "/" + uuid))
+        self.assertFalse(os.path.isdir(f"{ACL}/{uuid}"))
 
-        output = subprocess.check_output(shlex.split("%s approve 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} approve 0-1"))
         self.assertTrue(b'Authorized' in output)
         self.assertTrue(b'Added to ACL' in output)
 
@@ -449,10 +441,10 @@ class thunderbolt_test(unittest.TestCase):
         self.assertEqual(in_acl, "Yes")
 
         # ACL entry should be created for given UUID
-        self.assertTrue(os.path.isdir(ACL + "/" + uuid))
+        self.assertTrue(os.path.isdir(f"{ACL}/{uuid}"))
 
         # Verify content of ACL directory
-        ls = os.listdir(ACL + "/" + uuid)
+        ls = os.listdir(f"{ACL}/{uuid}")
         ls.sort()
         self.assertTrue(ls == ['device_name', 'vendor_name'])
 
@@ -475,17 +467,17 @@ class thunderbolt_test(unittest.TestCase):
         uuid = self.get_uuid()
         self.assertNotEqual(uuid, None)
 
-        output = subprocess.check_output(shlex.split("%s approve --once 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} approve --once 0-1"))
         self.assertTrue(b'Authorized' in output)
 
         authorized = self.get_authorized()
         self.assertEqual(authorized, "Yes")
 
         # ACL should not exist
-        self.assertFalse(os.path.isdir(ACL + "/" + uuid))
+        self.assertFalse(os.path.isdir(f"{ACL}/{uuid}"))
 
         # Test that second authorization returns "Already authorized"
-        output = subprocess.check_output(shlex.split("%s approve --once 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} approve --once 0-1"))
         log.debug(output)
         self.assertTrue(b'Already authorized' in output)
 
@@ -512,9 +504,9 @@ class thunderbolt_test(unittest.TestCase):
         self.assertNotEqual(uuid, None)
 
         # ACL should not yet exist
-        self.assertFalse(os.path.isdir(ACL + "/" + uuid))
+        self.assertFalse(os.path.isdir(f"{ACL}/{uuid}"))
 
-        output = subprocess.check_output(shlex.split("%s approve 0-1" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} approve 0-1"))
         self.assertTrue(b'Authorized' in output)
         self.assertTrue(b'Added to ACL' in output)
         self.assertTrue(b'Key saved in ACL' in output)
@@ -526,14 +518,14 @@ class thunderbolt_test(unittest.TestCase):
         self.assertEqual(in_acl, "Yes")
 
         # Check also "acl" command
-        output = subprocess.check_output(shlex.split("%s acl" % TBTADM))
+        output = subprocess.check_output(shlex.split(f"{TBTADM} acl"))
         self.assertTrue(str.encode(uuid) in output)
 
         # ACL entry should be created for given UUID
-        self.assertTrue(os.path.isdir(ACL + "/" + uuid))
+        self.assertTrue(os.path.isdir(f"{ACL}/{uuid}"))
 
         # Verify content of ACL directory
-        ls = os.listdir(ACL + "/" + uuid)
+        ls = os.listdir(f"{ACL}/{uuid}")
         ls.sort()
         self.assertTrue(ls == ['device_name', 'key','vendor_name'])
 
@@ -553,7 +545,7 @@ class thunderbolt_test(unittest.TestCase):
         tree2 = TbDomain(host = TbHost([device4], index = 1), index = 1)
         tree2.connect_tree(self.testbed)
 
-        subprocess.run(shlex.split("%s topology" % TBTADM))
+        subprocess.run(shlex.split(f"{TBTADM} topology"))
 
         # disconnect all devices
         tree1.disconnect(self.testbed)
